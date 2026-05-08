@@ -1,0 +1,68 @@
+### SERVICE - Apunta a ambos deployments (stable + canary)
+apiVersion: v1
+kind: Service
+metadata:
+  name: duoc-app-canary-service
+  labels:
+    app: duoc-app
+spec:
+  selector:
+    app: duoc-app
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+      nodePort: 30003
+---
+### DEPLOYMENT Estable v1 (90% del trafico - 2 replicas)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duoc-app-stable-v1
+  labels:
+    app: duoc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: duoc-app
+      version: stable
+  template:
+    metadata:
+      labels:
+        app: duoc-app
+        version: stable
+    spec:
+      containers:
+      - name: node-app-container
+        image: duoc-lab:v1.0
+        ports:
+        - containerPort: 3000
+        imagePullPolicy: Never
+---
+### DEPLOYMENT Canary v2 (10% del trafico - 1 replica)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duoc-app-canary-v2
+  labels:
+    app: duoc-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: duoc-app
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: duoc-app
+        version: canary
+    spec:
+      containers:
+      - name: node-app-container
+        image: duoc-lab:v2.0
+        ports:
+        - containerPort: 3000
+        imagePullPolicy: Never

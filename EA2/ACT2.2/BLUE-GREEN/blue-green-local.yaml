@@ -1,0 +1,66 @@
+### DEPLOYMENT Blue (v1.0 - activo inicialmente)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duoc-app-blue
+  labels:
+    app: duoc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: duoc-app
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: duoc-app
+        version: blue
+    spec:
+      containers:
+      - name: node-app-container
+        image: duoc-lab:v1.0
+        ports:
+        - containerPort: 3000
+        imagePullPolicy: Never
+---
+### SERVICE - Apunta inicialmente a Blue
+apiVersion: v1
+kind: Service
+metadata:
+  name: duoc-app-bg-service
+spec:
+  selector:
+    version: blue
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+      nodePort: 30004
+---
+### DEPLOYMENT Green (v2.0 - inactivo inicialmente)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duoc-app-green
+  labels:
+    app: duoc-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: duoc-app
+      version: green
+  template:
+    metadata:
+      labels:
+        app: duoc-app
+        version: green
+    spec:
+      containers:
+      - name: node-app-container
+        image: duoc-lab:v2.0
+        ports:
+        - containerPort: 3000
+        imagePullPolicy: Never
