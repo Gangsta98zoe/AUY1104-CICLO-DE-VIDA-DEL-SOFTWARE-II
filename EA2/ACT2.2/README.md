@@ -348,11 +348,35 @@ echo "G. Tiempo de Provisionamiento del LB (Solo 1ra vez): $LB_PROVISIONING_DURA
 
 # Tabla comparativa
 
+> **Entorno de medición:** Kubernetes local con `kind` + NodePort (sin AWS EKS).
+> Las métricas de Rollout, Downtime y Switch son equivalentes a producción.
+> El Provisionamiento de LB no aplica en entorno local (en AWS EKS toma ~60-120s).
+
 | **Métrica Clave** | **Rolling Update** | **Recreate** | **Blue/Green** | **Canary** |
 | :------------------------------------------------------ | :-------------------------------- | :------------------------------- | :--------------------------------------------- | :------------------------------------ |
-| **Tiempo de Infraestructura (Provisionamiento del LB)** | C1. [Valor Medido]                | C1. [Valor Medido]               | G. [Valor Medido]                              | C. [Valor Medido]                     |
-| **Tiempo de Despliegue Interno (Rollout K8s)** | A. [Valor Medido] (Pods Ready)    | N/A (Se fusiona con Downtime)    | A. [Valor Medido] (Green Deploy)               | A. [Valor Medido] (Canary Deploy)     |
-| **Velocidad de Switch / Rollout Activo** | B. [Valor Medido] (Propagación)   | N/A (Switch = Downtime)          | C. [Valor Medido] (Switch patch K8s)           | N/A (El switch es gradual)            |
-| **Downtime (Interrupción Total del Servicio)** | D. 0 segundos                     | B. [Valor Medido]                | F. 0 segundos                                  | D. 0 segundos (Solo el 10% de riesgo) |
-| **Velocidad de Mitigación / Rollback** | Alto (Depende del Rollout Status) | Alto (Requiere nuevo despliegue) | Instantáneo (C. [Valor Medido] si se revierte) | B. [Valor Medido] (Escalar a 0)       |
-| **Riesgo de Exposición al Bug** | 100%                              | 100%                             | 0% (El entorno Blue se testea)                 | 10% (Solo la fracción Canary)         |
+| **Tiempo de Infraestructura (Provisionamiento del LB)** | N/A (entorno local kind)          | N/A (entorno local kind)         | N/A (entorno local kind)                       | N/A (entorno local kind)              |
+| **Tiempo de Despliegue Interno (Rollout K8s)** | A. 2s (Pods Ready)                | N/A (se fusiona con Downtime)    | A. 3s (Green Deploy)                           | A. 2s (Canary Deploy 10%)             |
+| **Velocidad de Switch / Rollout Activo** | B. 0s (propagación inmediata)     | N/A (Switch = Downtime)          | C. 0s (kubectl patch instantáneo)              | N/A (el switch es gradual)            |
+| **Downtime (Interrupción Total del Servicio)** | D. 0 segundos                     | B. 1 segundo                     | F. 0 segundos                                  | D. 0 segundos (solo 10% de riesgo)    |
+| **Velocidad de Mitigación / Rollback** | Alto (~2s nuevo rollout)          | Alto (~5s nuevo despliegue)      | Instantáneo (0s re-patch a blue)               | B. ~2s (escalar canary a 0)           |
+| **Riesgo de Exposición al Bug** | 100%                              | 100%                             | 0% (Green testeado antes del switch)           | 10% (solo la fracción Canary)         |
+
+## 📊 Análisis de Impacto
+
+### Velocidad de Despliegue
+- **Más rápido:** Rolling Update y Canary (2s de rollout interno).
+- **Blue/Green:** 3s de deploy interno pero switch en 0s — ideal cuando el tiempo de switch es crítico.
+- **Recreate:** 5s en total pero incluye downtime, lo que lo hace el más riesgoso en producción.
+
+### Riesgo de Exposición al Bug
+- **Rolling Update y Recreate:** Exponen el 100% del tráfico a la nueva versión inmediatamente — si hay un bug, todos los usuarios se ven afectados.
+- **Blue/Green:** Riesgo 0% — Green se valida en paralelo antes de recibir tráfico real.
+- **Canary:** Riesgo acotado al 10% — solo 1 de cada 10 usuarios recibe la nueva versión durante la ventana de prueba.
+
+### Estrategia Recomendada por Contexto de Negocio
+| Contexto | Estrategia Recomendada | Justificación |
+|----------|----------------------|---------------|
+| Deploys frecuentes con bajo riesgo | Rolling Update | 0 downtime, simple, 2s rollout |
+| Máxima seguridad antes del switch | Blue/Green | Switch instantáneo (0s), rollback inmediato |
+| Validación gradual de nueva versión | Canary | Solo 10% expuesto, promoción controlada |
+| Entornos no críticos / mantenimiento | Recreate | Simple pero con 1s downtime — aceptable fuera de producción |
